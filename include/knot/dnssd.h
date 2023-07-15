@@ -12,7 +12,7 @@
 #include <atomic>
 #include <functional>
 
-#if defined(ANDROID) || defined(__APPLE__)
+#if defined(__clang__)
 #include <unordered_map>
 #endif
 

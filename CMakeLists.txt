@@ -5,14 +5,15 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-project(knotdnssd)
+project(knotdnssd LANGUAGES CXX)
 
 option(FORCE_USE_BONJOUR "FORCE TO USE APPLE BONJOUR" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 
 if (APPLE OR FORCE_USE_BONJOUR)
-    set(SOURCES ${SOURCES} src/bonjour.cpp)
+    set(KNOTDNSSD_SOURCES ${KNOTDNSSD_SOURCES} src/bonjour.cpp)
+    add_definitions(-DUSE_BONJOUR)
     if (WIN32)
         set(BONJOUR_SDK_HOME "$ENV{BONJOUR_SDK_HOME}")
         if (NOT BONJOUR_SDK_HOME)
@@ -25,24 +26,19 @@ if (APPLE OR FORCE_USE_BONJOUR)
         else ()
             set(DNSSD_LIBRARY "${BONJOUR_SDK_HOME}/Lib/Win32/dnssd.lib")
         endif ()
-        list(APPEND LINK_LIBS ws2_32)
-    elseif (APPLE)
-        find_library(DNSSD_LIBRARY dnssd)
-        set(DNSSD_INCLUDE_DIR "/usr/include")
-    else ()
+        list(APPEND KNOTDNSSD_LIBS ws2_32 ${DNSSD_LIBRARY})
+        set(KNOTDNSSD_INCLUDE ${KNOTDNSSD_INCLUDE} ${DNSSD_INCLUDE_DIR})
+    elseif (NOT APPLE) # for linux, we dont need any libraries on mac
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(AVAHI_COMPAT_LIBDNSSD REQUIRED IMPORTED_TARGET avahi-compat-libdns_sd)
-        set(DNSSD_INCLUDE_DIR ${AVAHI_COMPAT_LIBDNSSD_INCLUDE_DIRS})
-        set(DNSSD_LIBRARY PkgConfig::AVAHI_COMPAT_LIBDNSSD)
+        list(APPEND KNOTDNSSD_LIBS PkgConfig::AVAHI_COMPAT_LIBDNSSD)
+        set(KNOTDNSSD_INCLUDE ${KNOTDNSSD_INCLUDE} ${AVAHI_COMPAT_LIBDNSSD_INCLUDE_DIRS})
     endif ()
-    set(TARGET_INCLUDE ${TARGET_INCLUDE} ${DNSSD_INCLUDE_DIR})
-    list(APPEND LINK_LIBS ${DNSSD_LIBRARY})
-    add_definitions(-DUSE_BONJOUR)
 endif ()
 
-add_library(knotdnssd_static STATIC ${SOURCES})
+add_library(knotdnssd_static STATIC ${KNOTDNSSD_SOURCES})
 
 target_include_directories(knotdnssd_static PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_include_directories(knotdnssd_static PRIVATE ${TARGET_INCLUDE})
+target_include_directories(knotdnssd_static PRIVATE ${KNOTDNSSD_INCLUDE})
 
-target_link_libraries(knotdnssd_static PRIVATE ${LINK_LIBS})
+target_link_libraries(knotdnssd_static PRIVATE ${KNOTDNSSD_LIBS})
