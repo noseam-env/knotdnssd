@@ -9,39 +9,82 @@
 
 #include "knot/dnssd.h"
 #include <dns_sd.h>
-#include <iostream>
-#include <functional>
-#include <utility>
-#include <string>
+#include <functional> // function
+#include <iostream> // print
+#include <string> // string
 
 #if defined(_WIN32)
-
 #include <winsock.h>
-
 #else
-
 #include <sys/select.h>
 #include <unistd.h>
 #include <netinet/in.h>
-
 #endif
 
-void loop(DNSServiceRef sdRef, std::atomic<bool> &stopFlag) {
+std::string DNSServiceErrorToString(DNSServiceErrorType error) {
+    switch (error) {
+        default: return "Unrecognized error code";
+        case kDNSServiceErr_NoError: return "NoError";
+        case kDNSServiceErr_Unknown: return "Unknown";
+        case kDNSServiceErr_NoSuchName: return "NoSuchName";
+        case kDNSServiceErr_NoMemory: return "NoMemory";
+        case kDNSServiceErr_BadParam: return "BadParam";
+        case kDNSServiceErr_BadReference: return "BadReference";
+        case kDNSServiceErr_BadState: return "BadState";
+        case kDNSServiceErr_BadFlags: return "BadFlags";
+        case kDNSServiceErr_Unsupported: return "Unsupported";
+        case kDNSServiceErr_NotInitialized: return "NotInitialized";
+        case kDNSServiceErr_AlreadyRegistered: return "AlreadyRegistered";
+        case kDNSServiceErr_NameConflict: return "NameConflict";
+        case kDNSServiceErr_Invalid: return "Invalid";
+        case kDNSServiceErr_Firewall: return "Firewall";
+        case kDNSServiceErr_Incompatible: return "Incompatible";
+        case kDNSServiceErr_BadInterfaceIndex: return "BadInterfaceIndex";
+        case kDNSServiceErr_Refused: return "Refused";
+        case kDNSServiceErr_NoSuchRecord: return "NoSuchRecord";
+        case kDNSServiceErr_NoAuth: return "NoAuth";
+        case kDNSServiceErr_NoSuchKey: return "NoSuchKey";
+        case kDNSServiceErr_NATTraversal: return "NATTraversal";
+        case kDNSServiceErr_DoubleNAT: return "DoubleNAT";
+        case kDNSServiceErr_BadTime: return "BadTime";
+#if !defined(__linux__)
+        case kDNSServiceErr_BadSig: return "BadSig";
+        case kDNSServiceErr_BadKey: return "BadKey";
+        case kDNSServiceErr_Transient: return "Transient";
+        case kDNSServiceErr_ServiceNotRunning: return "ServiceNotRunning";
+        case kDNSServiceErr_NATPortMappingUnsupported: return "NATPortMappingUnsupported";
+        case kDNSServiceErr_NATPortMappingDisabled: return "NATPortMappingDisabled";
+        case kDNSServiceErr_NoRouter: return "NoRouter";
+        case kDNSServiceErr_PollingMode: return "PollingMode";
+        case kDNSServiceErr_Timeout: return "Timeout";
+#endif
+    }
+}
+
+void loop(DNSServiceRef sdRef, const std::function<bool()>& isStopped) {
     int fd = DNSServiceRefSockFD(sdRef);
+    if (fd == -1) {
+        std::cerr << "Couldn't ref sock fd" << std::endl;
+        return;
+    }
 #if defined(__linux__)
-    while (!stopFlag) {
+    while (!isStopped()) {
         fd_set readFds;
         FD_ZERO(&readFds);
         FD_SET(fd, &readFds);
 
-        struct timeval timeout;
+        struct timeval timeout{};
         timeout.tv_sec = 1;
         timeout.tv_usec = 0;
 
         int nfds = select(fd + 1, &readFds, nullptr, nullptr, &timeout);
         if (nfds > 0) {
             if (FD_ISSET(fd, &readFds)) {
-                DNSServiceProcessResult(sdRef);
+                DNSServiceErrorType err = DNSServiceProcessResult(sdRef);
+                if (err != kDNSServiceErr_NoError) {
+                    std::cerr << "DNSServiceProcessResult failed with error: " << DNSServiceErrorToString(err) << std::endl;
+                    break;
+                }
             }
         } else if (nfds < 0) {
             std::cerr << "Error occurred in select" << std::endl;
@@ -51,13 +94,17 @@ void loop(DNSServiceRef sdRef, std::atomic<bool> &stopFlag) {
         sleep(1);
     }
 #else
-    while (!stopFlag) {
+    while (!isStopped()) {
         fd_set fds;
         FD_ZERO(&fds);
         FD_SET(fd, &fds);
         int nfds = select(fd + 1, &fds, nullptr, nullptr, nullptr);
         if (nfds > 0) {
-            DNSServiceProcessResult(sdRef);
+            DNSServiceErrorType err = DNSServiceProcessResult(sdRef);
+            if (err != kDNSServiceErr_NoError) {
+                std::cerr << "DNSServiceProcessResult failed with error: " << DNSServiceErrorToString(err) << std::endl;
+                break;
+            }
         } else {
             break;
         }
@@ -74,26 +121,22 @@ void serializeToTXTRecord(TXTRecordRef &txtRecord, const std::unordered_map<std:
 }
 
 void registerService(const char *serviceName, const char *regType, const char *domain, int port,
-                     const std::unordered_map<std::string, std::string> &txt, std::atomic<bool> &stopFlag) {
+                     const std::unordered_map<std::string, std::string> &txt, const std::function<bool()> &isStopped) {
     DNSServiceRef sdRef;
-
     TXTRecordRef txtRecord;
     TXTRecordCreate(&txtRecord, 0, nullptr);
     serializeToTXTRecord(txtRecord, txt);
-
-    DNSServiceErrorType err = DNSServiceRegister(&sdRef, 0, kDNSServiceInterfaceIndexAny, serviceName, regType, domain,
+    DNSServiceErrorType err = DNSServiceRegister(&sdRef, 0, kDNSServiceInterfaceIndexAny,
+                                                 serviceName, regType, domain,
                                                  nullptr,
-                                                 htons(port), TXTRecordGetLength(&txtRecord),
-                                                 TXTRecordGetBytesPtr(&txtRecord),
+                                                 htons(port),
+                                                 TXTRecordGetLength(&txtRecord),TXTRecordGetBytesPtr(&txtRecord),
                                                  nullptr, nullptr);
-
     if (err != kDNSServiceErr_NoError) {
-        std::cerr << "DNSServiceRegister failed with error " << err << std::endl;
-        return;
+        std::cerr << "DNSServiceRegister failed with error: " << DNSServiceErrorToString(err) << std::endl;
+    } else {
+        loop(sdRef, isStopped);
     }
-
-    loop(sdRef, stopFlag);
-
     DNSServiceRefDeallocate(sdRef);
     TXTRecordDeallocate(&txtRecord);
 }
@@ -109,27 +152,25 @@ void DNSSD_API dnssdBrowseReply(
         void *context
 ) {
     if (errorCode != kDNSServiceErr_NoError) {
-        std::cerr << "dnssdBrowseReply failed with error " << errorCode << std::endl;
+        std::cerr << "dnssdBrowseReply failed with error: " << DNSServiceErrorToString(errorCode) << std::endl;
         return;
     }
-
-    FindReply findReply{serviceName, regType, replyDomain};
-
-    auto callback = reinterpret_cast<std::function<void(const FindReply &)> *>(context);
-    (*callback)(findReply);
+    const findCallback &callback = *static_cast<findCallback *>(context);
+    callback({serviceName, regType, replyDomain});
 }
 
-void findService(const char *regType, const char *domain, std::function<void(const FindReply &)> callback,
-                 std::atomic<bool> &stopFlag) {
+void findService(const char *regType, const char *domain, const findCallback &callback,
+                 const std::function<bool()> &isStopped) {
+    void *callbackPtr = static_cast<void *>(const_cast<findCallback *>(&callback));
     DNSServiceRef sdRef;
-    DNSServiceErrorType err = DNSServiceBrowse(&sdRef, 0, kDNSServiceInterfaceIndexAny, regType, domain,
-                                               dnssdBrowseReply, &callback);
+    DNSServiceErrorType err = DNSServiceBrowse(&sdRef, 0, kDNSServiceInterfaceIndexAny,
+                                               regType, domain,
+                                               dnssdBrowseReply, callbackPtr);
     if (err != kDNSServiceErr_NoError) {
-        std::cerr << "DNSServiceBrowse failed with error " << err << std::endl;
+        std::cerr << "DNSServiceBrowse failed with error: " << DNSServiceErrorToString(err) << std::endl;
+    } else {
+        loop(sdRef, isStopped);
     }
-
-    loop(sdRef, stopFlag);
-
     DNSServiceRefDeallocate(sdRef);
 }
 
@@ -173,51 +214,30 @@ void DNSSD_API dnssdResolveReply(
         void *context
 ) {
     if (errorCode != kDNSServiceErr_NoError) {
-        std::cerr << "dnssdResolveReply failed with error " << errorCode << std::endl;
+        std::cerr << "dnssdResolveReply failed with error: " << DNSServiceErrorToString(errorCode) << std::endl;
         return;
     }
-
     std::string txtString(reinterpret_cast<const char *>(txtRecord), txtLen);
-
     if (!txtString.empty()) {
         txtString = txtString.substr(1);
     }
-
     auto txt = parseTXTRecord(txtString);
-
-    ResolveReply resolveReply{hostTarget, htons(port), txt};
-
-    auto callback = reinterpret_cast<std::function<void(const ResolveReply &)> *>(context);
-    (*callback)(resolveReply);
+    const resolveCallback &callback = *static_cast<resolveCallback *>(context);
+    callback({hostTarget, htons(port), txt});
 }
 
 void resolveService(const char *serviceName, const char *regType, const char *domain,
-                    std::function<void(const ResolveReply &)> callback) {
+                    const resolveCallback &callback) {
+    void *callbackPtr = static_cast<void *>(const_cast<resolveCallback *>(&callback));
     DNSServiceRef sdRef;
     DNSServiceErrorType err = DNSServiceResolve(&sdRef, 0, kDNSServiceInterfaceIndexAny,
-                                                serviceName, regType, domain, dnssdResolveReply,
-                                                new std::function<void(const ResolveReply &)>(std::move(callback)));
+                                                serviceName, regType, domain,
+                                                dnssdResolveReply, callbackPtr);
     if (err != kDNSServiceErr_NoError) {
-        std::cerr << "DNSServiceResolve failed with error " << err << std::endl;
+        std::cerr << "DNSServiceResolve failed with error: " << DNSServiceErrorToString(err) << std::endl;
+    } else {
+        DNSServiceProcessResult(sdRef);
     }
-
-    DNSServiceProcessResult(sdRef);
-
-    /*
-    int fd = DNSServiceRefSockFD(sdRef);
-    while (true) {
-        fd_set fds;
-        FD_ZERO(&fds);
-        FD_SET(fd, &fds);
-        int nfds = select(fd + 1, &fds, nullptr, nullptr, nullptr);
-        if (nfds > 0) {
-            DNSServiceProcessResult(sdRef);
-        } else {
-            break;
-        }
-    }
-     */
-
     DNSServiceRefDeallocate(sdRef);
 }
 

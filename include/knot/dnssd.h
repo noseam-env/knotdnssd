@@ -16,7 +16,7 @@
 #include <unordered_map>
 #endif
 
-void registerService(const char *serviceName, const char *regType, const char *domain, int port, const std::unordered_map<std::string, std::string>& txt, std::atomic<bool> &stopFlag);
+void registerService(const char *serviceName, const char *regType, const char *domain, int port, const std::unordered_map<std::string, std::string>& txt, const std::function<bool()> &isStopped);
 
 struct FindReply {
     const char* serviceName;
@@ -24,14 +24,18 @@ struct FindReply {
     const char* replyDomain;
 };
 
-void findService(const char *regType, const char *domain, std::function<void(const FindReply&)> callback, std::atomic<bool> &stopFlag);
+using findCallback = std::function<void(const FindReply &)>;
+
+void findService(const char *regType, const char *domain, const findCallback &callback, const std::function<bool()> &isStopped);
 
 struct ResolveReply {
     const char* host;
-    uint16_t port;
+    unsigned short port;
     std::unordered_map<std::string, std::string> txt;
 };
 
-void resolveService(const char *serviceName, const char *regType, const char *domain, std::function<void(const ResolveReply&)> callback);
+using resolveCallback = std::function<void(const ResolveReply &)>;
+
+void resolveService(const char *serviceName, const char *regType, const char *domain, const resolveCallback &callback);
 
 #endif //KNOTDNSSD_H
