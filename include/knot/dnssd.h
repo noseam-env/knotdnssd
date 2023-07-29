@@ -11,6 +11,7 @@
 #include <string>
 #include <atomic>
 #include <functional>
+#include <optional>
 
 #if defined(__clang__)
 #include <unordered_map>
@@ -28,14 +29,31 @@ using findCallback = std::function<void(const FindReply &)>;
 
 void findService(const char *regType, const char *domain, const findCallback &callback, const std::function<bool()> &isStopped);
 
+enum IPType {
+    IPv6,
+    IPv4
+};
+
+struct IPAddress {
+    IPType type;
+    std::string value;
+};
+
 struct ResolveReply {
-    const char* host;
+    std::optional<std::string> hostName;
+    std::optional<IPAddress> ip;
     unsigned short port;
     std::unordered_map<std::string, std::string> txt;
 };
 
-using resolveCallback = std::function<void(const ResolveReply &)>;
+using resolveCallback = std::function<void(const std::optional<ResolveReply> &)>;
 
 void resolveService(const char *serviceName, const char *regType, const char *domain, const resolveCallback &callback);
+
+using queryCallback = std::function<void(const std::optional<IPAddress> &)>;
+
+void queryIPv6Address(const char *hostName, const queryCallback &callback);
+
+void queryIPv4Address(const char *hostName, const queryCallback &callback);
 
 #endif //KNOTDNSSD_H

@@ -12,10 +12,9 @@
 #include <functional> // function
 #include <iostream> // print
 #include <string> // string
+#include "util.h"
 
-#if defined(_WIN32)
-#include <winsock.h>
-#else
+#if !defined(_WIN32)
 #include <sys/select.h>
 #include <unistd.h>
 #include <netinet/in.h>
@@ -213,8 +212,10 @@ void DNSSD_API dnssdResolveReply(
         const unsigned char *txtRecord,
         void *context
 ) {
+    const resolveCallback &callback = *static_cast<resolveCallback *>(context);
     if (errorCode != kDNSServiceErr_NoError) {
         std::cerr << "dnssdResolveReply failed with error: " << DNSServiceErrorToString(errorCode) << std::endl;
+        callback(std::nullopt);
         return;
     }
     std::string txtString(reinterpret_cast<const char *>(txtRecord), txtLen);
@@ -222,8 +223,7 @@ void DNSSD_API dnssdResolveReply(
         txtString = txtString.substr(1);
     }
     auto txt = parseTXTRecord(txtString);
-    const resolveCallback &callback = *static_cast<resolveCallback *>(context);
-    callback({hostTarget, htons(port), txt});
+    callback({{hostTarget, std::nullopt, htons(port), txt}});
 }
 
 void resolveService(const char *serviceName, const char *regType, const char *domain,
@@ -235,6 +235,62 @@ void resolveService(const char *serviceName, const char *regType, const char *do
                                                 dnssdResolveReply, callbackPtr);
     if (err != kDNSServiceErr_NoError) {
         std::cerr << "DNSServiceResolve failed with error: " << DNSServiceErrorToString(err) << std::endl;
+    } else {
+        DNSServiceProcessResult(sdRef);
+    }
+    DNSServiceRefDeallocate(sdRef);
+}
+
+void DNSSD_API dnssdQueryReply(
+        DNSServiceRef                       sdRef,
+        DNSServiceFlags                     flags,
+        uint32_t                            interfaceIndex,
+        DNSServiceErrorType                 errorCode,
+        const char                          *fullname,
+        uint16_t                            rrtype,
+        uint16_t                            rrclass,
+        uint16_t                            rdlen,
+        const void                          *rdata,
+        uint32_t                            ttl,
+        void                                *context
+) {
+    const queryCallback &callback = *static_cast<queryCallback *>(context);
+    if (errorCode != kDNSServiceErr_NoError) {
+        std::cerr << "dnssdQueryReply failed with error: " << DNSServiceErrorToString(errorCode) << std::endl;
+        callback(std::nullopt);
+        return;
+    }
+    if (rdlen != 4 && rdlen != 16) {
+        std::cerr << "dnssdQueryReply received invalid address" << std::endl;
+        callback(std::nullopt);
+    }
+    std::string stringAddress = parseInetAddress(rdlen, rdata);
+    if (stringAddress.empty()) {
+        callback(std::nullopt);
+    }
+    callback({{rdlen == 16 ? IPv6 : IPv4, stringAddress}});
+}
+
+void queryIPv6Address(const char *hostName, const queryCallback &callback) {
+    void *callbackPtr = static_cast<void *>(const_cast<queryCallback *>(&callback));
+    DNSServiceRef sdRef;
+    DNSServiceErrorType err = DNSServiceQueryRecord(&sdRef, 0, kDNSServiceInterfaceIndexAny, hostName,
+                          kDNSServiceType_AAAA, kDNSServiceClass_IN, dnssdQueryReply, callbackPtr);
+    if (err != kDNSServiceErr_NoError) {
+        std::cerr << "DNSServiceQueryRecord failed with error: " << DNSServiceErrorToString(err) << std::endl;
+    } else {
+        DNSServiceProcessResult(sdRef);
+    }
+    DNSServiceRefDeallocate(sdRef);
+}
+
+void queryIPv4Address(const char *hostName, const queryCallback &callback) {
+    void *callbackPtr = static_cast<void *>(const_cast<queryCallback *>(&callback));
+    DNSServiceRef sdRef;
+    DNSServiceErrorType err = DNSServiceQueryRecord(&sdRef, 0, kDNSServiceInterfaceIndexAny, hostName,
+                                                    kDNSServiceType_A, kDNSServiceClass_IN, dnssdQueryReply, callbackPtr);
+    if (err != kDNSServiceErr_NoError) {
+        std::cerr << "DNSServiceQueryRecord failed with error: " << DNSServiceErrorToString(err) << std::endl;
     } else {
         DNSServiceProcessResult(sdRef);
     }
