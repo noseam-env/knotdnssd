@@ -128,7 +128,7 @@ void registerService(const char *serviceName, const char *regType, const char *d
     DNSServiceErrorType err = DNSServiceRegister(&sdRef, 0, kDNSServiceInterfaceIndexAny,
                                                  serviceName, regType, domain,
                                                  nullptr,
-                                                 port,
+                                                 htons(port),
                                                  TXTRecordGetLength(&txtRecord),TXTRecordGetBytesPtr(&txtRecord),
                                                  nullptr, nullptr);
     if (err != kDNSServiceErr_NoError) {
