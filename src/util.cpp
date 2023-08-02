@@ -13,7 +13,8 @@
 #include <ws2tcpip.h>
 #include <stdexcept>
 #else
-#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <cstring>
 #endif
 
 std::string parseInetAddress(uint16_t rdlen, const void *rdata) {

@@ -30,11 +30,12 @@ if (APPLE OR FORCE_USE_BONJOUR)
         endif ()
         list(APPEND KNOTDNSSD_LIBS ws2_32 ${DNSSD_LIBRARY})
         set(KNOTDNSSD_INCLUDE ${KNOTDNSSD_INCLUDE} ${DNSSD_INCLUDE_DIR})
-    elseif (NOT APPLE) # for linux, we dont need any libraries on mac
+    elseif (NOT APPLE AND NOT ANDROID) # for linux, we dont need any libraries on mac
         find_package(PkgConfig REQUIRED)
         pkg_check_modules(AVAHI_COMPAT_LIBDNSSD REQUIRED IMPORTED_TARGET avahi-compat-libdns_sd)
         list(APPEND KNOTDNSSD_LIBS PkgConfig::AVAHI_COMPAT_LIBDNSSD)
         set(KNOTDNSSD_INCLUDE ${KNOTDNSSD_INCLUDE} ${AVAHI_COMPAT_LIBDNSSD_INCLUDE_DIRS})
+        add_definitions(-DAVAHI_BONJOUR)
     endif ()
 endif ()
 

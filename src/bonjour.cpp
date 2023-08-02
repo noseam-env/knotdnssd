@@ -8,7 +8,7 @@
 #if defined(USE_BONJOUR)
 
 #include "knot/dnssd.h"
-#include <dns_sd.h>
+#include "dns_sd.h"
 #include <functional> // function
 #include <iostream> // print
 #include <string> // string
@@ -46,7 +46,7 @@ std::string DNSServiceErrorToString(DNSServiceErrorType error) {
         case kDNSServiceErr_NATTraversal: return "NATTraversal";
         case kDNSServiceErr_DoubleNAT: return "DoubleNAT";
         case kDNSServiceErr_BadTime: return "BadTime";
-#if !defined(__linux__)
+#if !defined(AVAHI_BONJOUR)
         case kDNSServiceErr_BadSig: return "BadSig";
         case kDNSServiceErr_BadKey: return "BadKey";
         case kDNSServiceErr_Transient: return "Transient";
@@ -66,7 +66,7 @@ void loop(DNSServiceRef sdRef, const std::function<bool()>& isStopped) {
         std::cerr << "Couldn't ref sock fd" << std::endl;
         return;
     }
-#if defined(__linux__)
+#if defined(AVAHI_BONJOUR)
     while (!isStopped()) {
         fd_set readFds;
         FD_ZERO(&readFds);
@@ -119,7 +119,7 @@ void serializeToTXTRecord(TXTRecordRef &txtRecord, const std::unordered_map<std:
     }
 }
 
-void registerService(const char *serviceName, const char *regType, const char *domain, int port,
+void registerService(const char *serviceName, const char *regType, const char *domain, unsigned short port,
                      const std::unordered_map<std::string, std::string> &txt, const std::function<bool()> &isStopped) {
     DNSServiceRef sdRef;
     TXTRecordRef txtRecord;
@@ -128,7 +128,7 @@ void registerService(const char *serviceName, const char *regType, const char *d
     DNSServiceErrorType err = DNSServiceRegister(&sdRef, 0, kDNSServiceInterfaceIndexAny,
                                                  serviceName, regType, domain,
                                                  nullptr,
-                                                 htons(port),
+                                                 port,
                                                  TXTRecordGetLength(&txtRecord),TXTRecordGetBytesPtr(&txtRecord),
                                                  nullptr, nullptr);
     if (err != kDNSServiceErr_NoError) {

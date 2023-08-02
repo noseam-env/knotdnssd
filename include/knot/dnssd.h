@@ -17,7 +17,7 @@
 #include <unordered_map>
 #endif
 
-void registerService(const char *serviceName, const char *regType, const char *domain, int port, const std::unordered_map<std::string, std::string>& txt, const std::function<bool()> &isStopped);
+void registerService(const char *serviceName, const char *regType, const char *domain, unsigned short port, const std::unordered_map<std::string, std::string>& txt, const std::function<bool()> &isStopped);
 
 struct FindReply {
     const char* serviceName;
