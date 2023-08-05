@@ -177,24 +177,26 @@ std::unordered_map<std::string, std::string> parseTXTRecord(const std::string &t
     std::unordered_map<std::string, std::string> txt;
 
     size_t startPos = 0;
-    size_t endPos = txtRecord.find(' ');
+    size_t endPos = txtRecord.find('\x05');
+
     while (endPos != std::string::npos) {
         std::string pair = txtRecord.substr(startPos, endPos - startPos);
         size_t equalPos = pair.find('=');
         if (equalPos != std::string::npos) {
             std::string key = pair.substr(0, equalPos);
             std::string value = pair.substr(equalPos + 1);
-            txt[key] = value;
+            txt.emplace(key, value);
         }
         startPos = endPos + 1;
-        endPos = txtRecord.find(' ', startPos);
+        endPos = txtRecord.find('\x05', startPos);
     }
+
     std::string pair = txtRecord.substr(startPos);
     size_t equalPos = pair.find('=');
     if (equalPos != std::string::npos) {
         std::string key = pair.substr(0, equalPos);
         std::string value = pair.substr(equalPos + 1);
-        txt[key] = value;
+        txt.emplace(key, value);
     }
 
     return txt;
