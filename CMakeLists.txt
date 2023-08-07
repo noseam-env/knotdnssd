@@ -7,13 +7,18 @@ cmake_minimum_required(VERSION 3.0)
 
 project(knotdnssd LANGUAGES CXX)
 
-option(FORCE_USE_BONJOUR "FORCE TO USE APPLE BONJOUR" ON)
-
 set(CMAKE_CXX_STANDARD 17)
 
 set(KNOTDNSSD_SOURCES ${KNOTDNSSD_SOURCES} src/util.cpp src/util.h)
 
-if (APPLE OR FORCE_USE_BONJOUR)
+if (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
+    include(cmake/FindDBus.cmake)
+    include(cmake/FindAvahi.cmake)
+    #set(KNOTDNSSD_INCLUDE ${KNOTDNSSD_INCLUDE} ${AVAHI_INCLUDE_DIRS})
+    list(APPEND KNOTDNSSD_LIBS Avahi::common Avahi::client)
+    set(KNOTDNSSD_SOURCES ${KNOTDNSSD_SOURCES} src/avahi.cpp)
+    add_definitions(-DUSE_AVAHI)
+else ()
     set(KNOTDNSSD_SOURCES ${KNOTDNSSD_SOURCES} src/bonjour.cpp)
     add_definitions(-DUSE_BONJOUR)
     if (WIN32)
@@ -28,14 +33,8 @@ if (APPLE OR FORCE_USE_BONJOUR)
         else ()
             set(DNSSD_LIBRARY "${BONJOUR_SDK_HOME}/Lib/Win32/dnssd.lib")
         endif ()
-        list(APPEND KNOTDNSSD_LIBS ws2_32 ${DNSSD_LIBRARY})
         set(KNOTDNSSD_INCLUDE ${KNOTDNSSD_INCLUDE} ${DNSSD_INCLUDE_DIR})
-    elseif (NOT APPLE AND NOT ANDROID) # for linux, we dont need any libraries on mac
-        find_package(PkgConfig REQUIRED)
-        pkg_check_modules(AVAHI_COMPAT_LIBDNSSD REQUIRED IMPORTED_TARGET avahi-compat-libdns_sd)
-        list(APPEND KNOTDNSSD_LIBS PkgConfig::AVAHI_COMPAT_LIBDNSSD)
-        set(KNOTDNSSD_INCLUDE ${KNOTDNSSD_INCLUDE} ${AVAHI_COMPAT_LIBDNSSD_INCLUDE_DIRS})
-        add_definitions(-DAVAHI_BONJOUR)
+        list(APPEND KNOTDNSSD_LIBS ws2_32 ${DNSSD_LIBRARY})
     endif ()
 endif ()
 

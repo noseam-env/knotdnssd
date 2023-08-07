@@ -17,17 +17,27 @@
 #include <unordered_map>
 #endif
 
-void registerService(const char *serviceName, const char *regType, const char *domain, unsigned short port, const std::unordered_map<std::string, std::string>& txt, const std::function<bool()> &isStopped);
+template <typename Signature>
+using Fn = std::function<Signature>;
 
-struct FindReply {
+void registerService(const char *serviceName, const char *regType, const char *domain, unsigned short port, const std::unordered_map<std::string, std::string>& txt, const Fn<bool()> &isStopped);
+
+struct BrowseReply {
     const char* serviceName;
     const char* regType;
     const char* replyDomain;
 };
 
-using findCallback = std::function<void(const FindReply &)>;
+using browseCallback = Fn<void(const BrowseReply &)>;
 
-void findService(const char *regType, const char *domain, const findCallback &callback, const std::function<bool()> &isStopped);
+void browseServices(const char *regType, const char *domain, const browseCallback &callback, const Fn<bool()> &isStopped);
+
+// back support
+using FindReply = BrowseReply;
+using findCallback = Fn<void(const FindReply &)>;
+static void findService(const char *regType, const char *domain, const findCallback &callback, const Fn<bool()> &isStopped) {
+    browseServices(regType, domain, callback, isStopped);
+}
 
 enum IPType {
     IPv6,
@@ -46,11 +56,11 @@ struct ResolveReply {
     std::unordered_map<std::string, std::string> txt;
 };
 
-using resolveCallback = std::function<void(const std::optional<ResolveReply> &)>;
+using resolveCallback = Fn<void(const std::optional<ResolveReply> &)>;
 
 void resolveService(const char *serviceName, const char *regType, const char *domain, const resolveCallback &callback);
 
-using queryCallback = std::function<void(const std::optional<IPAddress> &)>;
+using queryCallback = Fn<void(const std::optional<IPAddress> &)>;
 
 void queryIPv6Address(const char *hostName, const queryCallback &callback);
 

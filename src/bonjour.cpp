@@ -154,13 +154,13 @@ void DNSSD_API dnssdBrowseReply(
         std::cerr << "dnssdBrowseReply failed with error: " << DNSServiceErrorToString(errorCode) << std::endl;
         return;
     }
-    const findCallback &callback = *static_cast<findCallback *>(context);
+    const browseCallback &callback = *static_cast<browseCallback *>(context);
     callback({serviceName, regType, replyDomain});
 }
 
-void findService(const char *regType, const char *domain, const findCallback &callback,
+void browseServices(const char *regType, const char *domain, const browseCallback &callback,
                  const std::function<bool()> &isStopped) {
-    void *callbackPtr = static_cast<void *>(const_cast<findCallback *>(&callback));
+    void *callbackPtr = static_cast<void *>(const_cast<browseCallback *>(&callback));
     DNSServiceRef sdRef;
     DNSServiceErrorType err = DNSServiceBrowse(&sdRef, 0, kDNSServiceInterfaceIndexAny,
                                                regType, domain,
