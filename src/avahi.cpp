@@ -2,7 +2,7 @@
  * This file is part of libknotdnssd.
  *
  * For license and copyright information please follow this link:
- * https://github.com/noseam-env/libknotdnssd/blob/master/LEGAL
+ * https://github.com/noseam-env/libknotdnssd/blob/master/README.md
  */
 
 #if defined(USE_AVAHI)

@@ -5,11 +5,11 @@
 
 cmake_minimum_required(VERSION 3.0)
 
-project(knotdnssd LANGUAGES CXX)
+project(knotdnssd LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 
-set(KNOTDNSSD_SOURCES ${KNOTDNSSD_SOURCES} src/util.cpp src/util.h)
+set(KNOTDNSSD_SOURCES ${KNOTDNSSD_SOURCES} src/util.c src/util.h)
 
 if (CMAKE_HOST_SYSTEM_NAME MATCHES "Linux")
     include(cmake/FindDBus.cmake)
