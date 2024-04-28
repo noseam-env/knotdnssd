@@ -75,7 +75,7 @@ find_package(Threads)
 find_library(Avahi_client_LIBRARY
         NAMES avahi-client
 )
-find_package(DBus)
+#find_package(DBus)
 
 find_library(Avahi_compat-libdns_sd_LIBRARY
         NAMES dns_sd
@@ -90,7 +90,7 @@ find_package_handle_standard_args(Avahi
         REQUIRED_VARS
         Avahi_common_LIBRARY
         Avahi_client_LIBRARY
-        Avahi_compat-libdns_sd_LIBRARY
+        #Avahi_compat-libdns_sd_LIBRARY
         Avahi_INCLUDE_DIR
 )
 

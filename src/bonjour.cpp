@@ -8,7 +8,7 @@
 #if defined(USE_BONJOUR)
 
 #include "knot/dnssd.h"
-#include "dns_sd.h"
+#include <dns_sd.h>
 #include <functional> // function
 #include <string> // string
 #include "util.h"
