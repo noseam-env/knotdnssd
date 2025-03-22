@@ -14,7 +14,7 @@ extern "C" {
 
 #include <stdint.h>
 
-const char* knotdnssd_parse_inet_addr(uint16_t rdlen, const void *rdata);
+const char* knotdnssd_parse_inet_addr(uint16_t rdlen, const void* rdata);
 
 #ifdef __cplusplus
 } // extern "C"

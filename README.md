@@ -12,7 +12,7 @@ Library that wraps DNS Service Discovery libraries
 
 The library is licensed under the [MIT License](https://opensource.org/license/mit/):
 
-Copyright (C) 2023 Michael Neonov <two.nelonn at gmail.com>
+Copyright (C) 2025 Michael Neonov <two.nelonn at gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

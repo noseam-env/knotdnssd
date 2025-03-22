@@ -45,7 +45,7 @@ const char* knotdnssd_bonjour_error_to_str(DNSServiceErrorType error) {
         case kDNSServiceErr_NATTraversal: return "NATTraversal";
         case kDNSServiceErr_DoubleNAT: return "DoubleNAT";
         case kDNSServiceErr_BadTime: return "BadTime";
-#if !defined(AVAHI_BONJOUR)
+#if !defined(AVAHI_BONJOUR_COMPAT)
         case kDNSServiceErr_BadSig: return "BadSig";
         case kDNSServiceErr_BadKey: return "BadKey";
         case kDNSServiceErr_Transient: return "Transient";
@@ -65,7 +65,7 @@ void knotdnssd_bonjour_loop(DNSServiceRef sdRef, const std::function<bool()>& is
         fprintf(stderr, "Couldn't ref sock fd\n");
         return;
     }
-#if defined(AVAHI_BONJOUR)
+#if defined(AVAHI_BONJOUR_COMPAT)
     while (!isStopped()) {
         fd_set readFds;
         FD_ZERO(&readFds);
@@ -80,7 +80,7 @@ void knotdnssd_bonjour_loop(DNSServiceRef sdRef, const std::function<bool()>& is
             if (FD_ISSET(fd, &readFds)) {
                 DNSServiceErrorType err = DNSServiceProcessResult(sdRef);
                 if (err != kDNSServiceErr_NoError) {
-                    fprintf(stderr, "DNSServiceProcessResult failed with error: %s\n", DNSServiceErrorToString(err));
+                    fprintf(stderr, "DNSServiceProcessResult failed with error: %s\n", knotdnssd_bonjour_error_to_str(err));
                     break;
                 }
             }
@@ -110,16 +110,16 @@ void knotdnssd_bonjour_loop(DNSServiceRef sdRef, const std::function<bool()>& is
 #endif
 }
 
-void knotdnssd_bonjour_serialize_txt_rec(TXTRecordRef &txtRecord, const std::unordered_map<std::string, std::string> &txt) {
-    for (const auto &pair : txt) {
-        std::string key = pair.first;
-        std::string value = pair.second;
+void knotdnssd_bonjour_serialize_txt_rec(TXTRecordRef& txtRecord, const std::unordered_map<std::string, std::string>& txt) {
+    for (const auto& [key, value] : txt) {
         TXTRecordSetValue(&txtRecord, key.c_str(), static_cast<uint8_t>(value.length()), value.c_str());
     }
 }
 
-void registerService(const char *serviceName, const char *regType, const char *domain, unsigned short port,
-                     const std::unordered_map<std::string, std::string> &txt, const std::function<bool()> &isStopped) {
+namespace knot {
+
+void registerService(const char *serviceName, const char *regType, const char *domain, uint16_t port,
+                     const std::unordered_map<std::string, std::string>& txt, const std::function<bool()>& isStopped) {
     DNSServiceRef sdRef;
     TXTRecordRef txtRecord;
     TXTRecordCreate(&txtRecord, 0, nullptr);
@@ -144,22 +144,22 @@ void DNSSD_API knotdnssd_bonjour_browse_reply(
         DNSServiceFlags,
         uint32_t,
         DNSServiceErrorType errorCode,
-        const char *serviceName,
-        const char *regType,
-        const char *replyDomain,
-        void *context
+        const char* serviceName,
+        const char* regType,
+        const char* replyDomain,
+        void* context
 ) {
     if (errorCode != kDNSServiceErr_NoError) {
         fprintf(stderr, "knotdnssd_bonjour_browse_reply failed with error: %s\n", knotdnssd_bonjour_error_to_str(errorCode));
         return;
     }
-    const browseCallback& callback = *static_cast<browseCallback*>(context);
+    const BrowseCallback& callback = *static_cast<BrowseCallback*>(context);
     callback({serviceName, regType, replyDomain});
 }
 
-void browseServices(const char* regType, const char* domain, const browseCallback& callback,
+void browseServices(const char* regType, const char* domain, const BrowseCallback& callback,
                  const std::function<bool()>& isStopped) {
-    void *callbackPtr = static_cast<void *>(const_cast<browseCallback *>(&callback));
+    void* callbackPtr = static_cast<void*>(const_cast<BrowseCallback*>(&callback));
     DNSServiceRef sdRef;
     DNSServiceErrorType err = DNSServiceBrowse(&sdRef, 0, kDNSServiceInterfaceIndexAny,
                                                regType, domain,
@@ -172,7 +172,7 @@ void browseServices(const char* regType, const char* domain, const browseCallbac
     DNSServiceRefDeallocate(sdRef);
 }
 
-std::unordered_map<std::string, std::string> knotdnssd_bonjour_parse_txt_rec(const std::string &txtRecord) {
+std::unordered_map<std::string, std::string> knotdnssd_bonjour_parse_txt_rec(const std::string& txtRecord) {
     std::unordered_map<std::string, std::string> txt;
 
     size_t startPos = 0;
@@ -206,30 +206,30 @@ void DNSSD_API knotdnssd_bonjour_resolve_reply(
         DNSServiceFlags,
         uint32_t,
         DNSServiceErrorType errorCode,
-        const char *,
-        const char *hostTarget,
+        const char* fullname,
+        const char* hosttarget,
         uint16_t port,
         uint16_t txtLen,
-        const unsigned char *txtRecord,
-        void *context
+        const unsigned char* txtRecord,
+        void* context
 ) {
-    const resolveCallback &callback = *static_cast<resolveCallback *>(context);
+    const ResolveCallback& callback = *static_cast<ResolveCallback*>(context);
     if (errorCode != kDNSServiceErr_NoError) {
         fprintf(stderr, "knotdnssd_bonjour_resolve_reply failed with error: %s\n", knotdnssd_bonjour_error_to_str(errorCode));
         callback(std::nullopt);
         return;
     }
-    std::string txtString(reinterpret_cast<const char *>(txtRecord), txtLen);
+    std::string txtString(reinterpret_cast<const char*>(txtRecord), txtLen);
     if (!txtString.empty()) {
         txtString = txtString.substr(1);
     }
     auto txt = knotdnssd_bonjour_parse_txt_rec(txtString);
-    callback({{hostTarget, std::nullopt, htons(port), txt}});
+    callback({{hosttarget, std::nullopt, htons(port), txt}});
 }
 
-void resolveService(const char *serviceName, const char *regType, const char *domain,
-                    const resolveCallback &callback) {
-    void *callbackPtr = static_cast<void *>(const_cast<resolveCallback *>(&callback));
+void resolveService(const char* serviceName, const char* regType, const char* domain,
+                    const ResolveCallback& callback) {
+    void* callbackPtr = static_cast<void*>(const_cast<ResolveCallback*>(&callback));
     DNSServiceRef sdRef;
     DNSServiceErrorType err = DNSServiceResolve(&sdRef, 0, kDNSServiceInterfaceIndexAny,
                                                 serviceName, regType, domain,
@@ -255,7 +255,7 @@ void DNSSD_API knotdnssd_bonjour_query_reply(
         uint32_t                            ttl,
         void                                *context
 ) {
-    const queryCallback &callback = *static_cast<queryCallback *>(context);
+    const QueryCallback& callback = *static_cast<QueryCallback*>(context);
     if (errorCode != kDNSServiceErr_NoError) {
         fprintf(stderr, "knotdnssd_bonjour_query_reply failed with error: %s\n", knotdnssd_bonjour_error_to_str(errorCode));
         callback(std::nullopt);
@@ -272,8 +272,8 @@ void DNSSD_API knotdnssd_bonjour_query_reply(
     callback({{rdlen == 16 ? IPv6 : IPv4, std::string(stringAddress)}});
 }
 
-void queryIPv6Address(const char *hostName, const queryCallback &callback) {
-    void *callbackPtr = static_cast<void *>(const_cast<queryCallback *>(&callback));
+void queryIPv6Address(const char* hostName, const QueryCallback& callback) {
+    void* callbackPtr = static_cast<void*>(const_cast<QueryCallback*>(&callback));
     DNSServiceRef sdRef;
     DNSServiceErrorType err = DNSServiceQueryRecord(&sdRef, 0, kDNSServiceInterfaceIndexAny, hostName,
                                                     kDNSServiceType_AAAA, kDNSServiceClass_IN,
@@ -286,8 +286,8 @@ void queryIPv6Address(const char *hostName, const queryCallback &callback) {
     DNSServiceRefDeallocate(sdRef);
 }
 
-void queryIPv4Address(const char *hostName, const queryCallback &callback) {
-    void *callbackPtr = static_cast<void *>(const_cast<queryCallback *>(&callback));
+void queryIPv4Address(const char* hostName, const QueryCallback& callback) {
+    void* callbackPtr = static_cast<void*>(const_cast<QueryCallback*>(&callback));
     DNSServiceRef sdRef;
     DNSServiceErrorType err = DNSServiceQueryRecord(&sdRef, 0, kDNSServiceInterfaceIndexAny, hostName,
                                                     kDNSServiceType_A, kDNSServiceClass_IN,
@@ -298,6 +298,8 @@ void queryIPv4Address(const char *hostName, const queryCallback &callback) {
         DNSServiceProcessResult(sdRef);
     }
     DNSServiceRefDeallocate(sdRef);
+}
+
 }
 
 #endif  // USE_BONJOUR

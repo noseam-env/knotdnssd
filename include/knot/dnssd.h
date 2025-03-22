@@ -14,10 +14,31 @@
 #include <optional>
 #include <unordered_map>
 
-template <typename Signature>
-using Fn = std::function<Signature>;
+#if defined(_WIN32)
+#  define KNOTDNSSD_DLL_EXPORT __declspec(dllexport)
+#  define KNOTDNSSD_DLL_IMPORT __declspec(dllimport)
+#else
+#  define KNOTDNSSD_DLL_EXPORT __attribute__((visibility("default")))
+#  define KNOTDNSSD_DLL_IMPORT __attribute__((visibility("default")))
+#endif
 
-void registerService(const char* serviceName, const char* regType, const char* domain, unsigned short port, const std::unordered_map<std::string, std::string>& txt, const Fn<bool()> &isStopped);
+#if defined(KNOTDNSSD_IMPLEMENTATION)
+#  define KNOTDNSSD_EXPORT KNOTDNSSD_DLL_EXPORT
+#else
+#  define KNOTDNSSD_EXPORT KNOTDNSSD_DLL_IMPORT
+#endif
+
+namespace knot {
+
+enum IPFamily : uint8_t {
+    IPv4 = 0,
+    IPv6 = 1,
+};
+
+struct IPAddress {
+    IPFamily family = IPv4;
+    std::string value;
+};
 
 struct BrowseReply {
     const char* serviceName;
@@ -25,41 +46,37 @@ struct BrowseReply {
     const char* replyDomain;
 };
 
-using browseCallback = Fn<void(const BrowseReply &)>;
-
-void browseServices(const char* regType, const char* domain, const browseCallback& callback, const Fn<bool()>& isStopped);
-
-using FindReply = BrowseReply;
-using findCallback = Fn<void(const FindReply &)>;
-static void findService(const char* regType, const char* domain, const findCallback& callback, const Fn<bool()>& isStopped) {
-    browseServices(regType, domain, callback, isStopped);
-}
-
-enum IPType {
-    IPv6,
-    IPv4
-};
-
-struct IPAddress {
-    IPType type;
-    std::string value;
-};
-
 struct ResolveReply {
     std::optional<std::string> hostName;
     std::optional<IPAddress> ip;
-    unsigned short port;
+    uint16_t port = 0;
     std::unordered_map<std::string, std::string> txt;
 };
 
-using resolveCallback = Fn<void(const std::optional<ResolveReply> &)>;
+template<typename Signature>
+using Fn = std::function<Signature>;
+using BrowseCallback = Fn<void(const BrowseReply&)>;
+using ResolveCallback = Fn<void(const std::optional<ResolveReply>&)>;
+using QueryCallback = Fn<void(const std::optional<IPAddress>&)>;
 
-void resolveService(const char* serviceName, const char* regType, const char* domain, const resolveCallback& callback);
+/// blocking operation
+KNOTDNSSD_EXPORT
+void registerService(const char* serviceName, const char* regType, const char* domain, uint16_t port, const std::unordered_map<std::string, std::string>& txt, const Fn<bool()>& isStopped);
 
-using queryCallback = Fn<void(const std::optional<IPAddress>&)>;
+/// blocking operation
+KNOTDNSSD_EXPORT
+void browseServices(const char* regType, const char* domain, const BrowseCallback& callback, const Fn<bool()>& isStopped);
 
-void queryIPv6Address(const char* hostName, const queryCallback& callback);
+/// blocking operation
+KNOTDNSSD_EXPORT
+void resolveService(const char* serviceName, const char* regType, const char* domain, const ResolveCallback& callback);
 
-void queryIPv4Address(const char* hostName, const queryCallback& callback);
+KNOTDNSSD_EXPORT
+void queryIPv6Address(const char* hostName, const QueryCallback& callback);
+
+KNOTDNSSD_EXPORT
+void queryIPv4Address(const char* hostName, const QueryCallback& callback);
+
+}
 
 #endif //KNOTDNSSD_H

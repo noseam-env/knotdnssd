@@ -18,8 +18,8 @@
 #include <arpa/inet.h>
 #endif
 
-const char* knotdnssd_parse_inet_addr(uint16_t rdlen, const void *rdata) {
-    bool isV6 = rdlen == 16;
+const char* knotdnssd_parse_inet_addr(uint16_t rdlen, const void* rdata) {
+    bool is_v6 = rdlen == 16;
     char buffer[INET6_ADDRSTRLEN];
     const char* result;
 #if defined(_WIN32)
@@ -29,15 +29,13 @@ const char* knotdnssd_parse_inet_addr(uint16_t rdlen, const void *rdata) {
         return NULL;
     }
 #endif
-    if (isV6) {
-        struct sockaddr_in6 sa;
-        memset(&sa, 0, sizeof(sa));
+    if (is_v6) {
+        struct sockaddr_in6 sa = {0};
         sa.sin6_family = AF_INET6;
         memcpy(&sa.sin6_addr, rdata, 16);
         result = inet_ntop(AF_INET6, &(sa.sin6_addr), buffer, INET6_ADDRSTRLEN);
     } else {
-        struct sockaddr_in sa;
-        memset(&sa, 0, sizeof(sa));
+        struct sockaddr_in sa = {0};
         sa.sin_family = AF_INET;
         memcpy(&sa.sin_addr, rdata, 4);
         result = inet_ntop(AF_INET, &(sa.sin_addr), buffer, INET_ADDRSTRLEN);
