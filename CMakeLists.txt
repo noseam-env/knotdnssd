@@ -1,7 +1,7 @@
-# This file is part of libknotdnssd.
+# This file is part of knotdnssd.
 #
 # For license and copyright information please follow this link:
-# https://github.com/noseam-env/libknotdnssd/blob/master/LEGAL
+# https://github.com/noseam-env/knotdnssd/blob/master/LEGAL
 
 cmake_minimum_required(VERSION 3.5)
 

@@ -1,8 +1,8 @@
 /*
- * This file is part of libknotdnssd.
+ * This file is part of knotdnssd.
  *
  * For license and copyright information please follow this link:
- * https://github.com/noseam-env/libknotdnssd/blob/master/README.md
+ * https://github.com/noseam-env/knotdnssd/blob/master/README.md
  */
 
 #ifndef KNOTDNSSD_UTIL_H
